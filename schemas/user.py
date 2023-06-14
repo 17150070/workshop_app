@@ -1,7 +1,7 @@
 from typing import List, Optional
 from pydantic import BaseModel
 
-from models.degree import Degree
+from schemas.degree import Degree
 
 
 class User(BaseModel):

@@ -1,13 +1,26 @@
 from typing import List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import ValidationError
+from fastapi.responses import JSONResponse
 
-from models.shop import Shop
-from models.user import User
+from schemas.shop import Shop
+from schemas.user import User
 
 app = FastAPI(
     title="Workshop App"
 )
+
+
+@app.exception_handlers(ValidationError)
+async def validation_handler(request: Request, exc: ValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=jsonable_encoder({"detail": exc.errors()})
+    )
+
+
 
 users = [
     {"id": 1, "role": "admin", "name": "Bob"},
