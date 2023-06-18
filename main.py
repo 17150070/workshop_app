@@ -1,50 +1,45 @@
 from typing import List
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import ValidationError
 from fastapi.responses import JSONResponse
+from fastapi_users import fastapi_users, FastAPIUsers
 
+from auth.auth import auth_backend
+from auth.database import User
+from auth.manager import get_user_manager
 from schemas.shop import Shop
-from schemas.user import User
+from schemas.user import UserRead, UserCreate
+
+
+fastapi_users = FastAPIUsers[User, int](
+    get_user_manager,
+    [auth_backend],
+)
 
 app = FastAPI(
     title="Workshop App"
 )
 
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth/jwt",
+    tags=["auth"],
+)
 
-@app.exception_handlers(ValidationError)
-async def validation_handler(request: Request, exc: ValidationError):
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=jsonable_encoder({"detail": exc.errors()})
-    )
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["auth"],
+)
 
+current_user = fastapi_users.current_user()
 
+@app.get("/protected-route")
+def protected_route(user: User = Depends(current_user)):
+    return f"Hello, {user.username}"
 
-users = [
-    {"id": 1, "role": "admin", "name": "Bob"},
-    {"id": 2, "role": "admin", "name": "Rail"},
-    {"id": 3, "role": "admin", "name": "Skyline"},
-    {"id": 4, "role": "admin", "name": "Skyline", "degree": [
-        {"id": 1, "created_at": "2020-01-01T00:00:00", "type_degree": "expert"}
-    ]},
-]
-
-@app.get("/users/{user_id}", response_model=List[User])
-def get_user(user_id: int): # указываем типизацию
-    return [
-        user for user in users # Проходимся по пользователям
-        if user.get("id") == user_id # сравниваем данные из json с path-параметром
-    ]
-
-shop = [
-    {"id": 1, "user_id": 1, "currency": "BTC", "side": "buy", "price": 123, "amount": 2.12},
-    {"id": 2, "user_id": 1, "currency": "BTC", "side": "sell", "price": 133, "amount": 2.12},
-]
-
-
-@app.post("/shops")
-def add_trades(shops: List[Shop]):
-    shop.extend(shops) # extend - добавить
-    return {"status": 200, "data": shop}
+@app.get("/unprotected-route")
+def unprotected_route():
+    return f"Hello, anonim"
